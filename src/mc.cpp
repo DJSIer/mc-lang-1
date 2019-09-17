@@ -57,22 +57,22 @@ int main(int argc, char *argv[]) {
         std::cout << "./mc file.mc" << std::endl;
         return -1;
     }
-
+    
     // mc言語のテキストファイルの読み込み
     std::string fileName = argv[1];
     lexer.initStream(fileName);
-
+    
     // 二項演算子の定義
     // 数字が低いほど結合度が低い
     BinopPrecedence['+'] = 20;
     BinopPrecedence['-'] = 20;
     BinopPrecedence['*'] = 40;
-
+    
     getNextToken();
-
+    
     MainLoop();
     
     write_output();
-
+    
     return 0;
 }

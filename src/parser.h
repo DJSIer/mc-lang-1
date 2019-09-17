@@ -11,34 +11,34 @@
 namespace {
     // ExprAST - `5+2`や`2*10-2`等のexpressionを表すクラス
     class ExprAST {
-        public:
-            virtual ~ExprAST() = default;
-            virtual Value *codegen() = 0;
+    public:
+        virtual ~ExprAST() = default;
+        virtual Value *codegen() = 0;
     };
-
+    
     // NumberAST - `5`や`2`等の数値リテラルを表すクラス
     class NumberAST : public ExprAST {
         // 実際に数値の値を保持する変数
         uint64_t Val;
-
-        public:
-            NumberAST(uint64_t Val) : Val(Val) {}
-            Value *codegen() override;
+        
+    public:
+        NumberAST(uint64_t Val) : Val(Val) {}
+        Value *codegen() override;
     };
-
+    
     // BinaryAST - `+`や`*`等の二項演算子を表すクラス
     class BinaryAST : public ExprAST {
         char Op;
         std::unique_ptr<ExprAST> LHS, RHS;
-
-        public:
-            BinaryAST(char Op, std::unique_ptr<ExprAST> LHS,
-                    std::unique_ptr<ExprAST> RHS)
-                : Op(Op), LHS(std::move(LHS)), RHS(std::move(RHS)) {}
-
-            Value *codegen() override;
+        
+    public:
+        BinaryAST(char Op, std::unique_ptr<ExprAST> LHS,
+                  std::unique_ptr<ExprAST> RHS)
+        : Op(Op), LHS(std::move(LHS)), RHS(std::move(RHS)) {}
+        
+        Value *codegen() override;
     };
-
+    
     // 第一回の課題では関数の定義・呼び出しは扱いませんが、後々のつながりを良くする為と
     // オブジェクトファイルのエントリーポイントを作り"それらしく"するために関数と関数シグネチャー
     // のクラスを作ります。
@@ -47,27 +47,27 @@ namespace {
     class PrototypeAST {
         std::string Name;
         std::vector<std::string> Args;
-
-        public:
-            PrototypeAST(const std::string &Name, std::vector<std::string> Args)
-                : Name(Name), Args(std::move(Args)) {}
-
-            Function *codegen();
-            const std::string &getName() const { return Name; }
+        
+    public:
+        PrototypeAST(const std::string &Name, std::vector<std::string> Args)
+        : Name(Name), Args(std::move(Args)) {}
+        
+        Function *codegen();
+        const std::string &getName() const { return Name; }
     };
-
+    
     // FunctionAST - 関数シグネチャー(PrototypeAST)に加えて関数のbody(C++で言うint foo) {...}の中身)を
     // 表すクラスです。
     class FunctionAST {
         std::unique_ptr<PrototypeAST> Proto;
         std::unique_ptr<ExprAST> Body;
-
-        public:
-            FunctionAST(std::unique_ptr<PrototypeAST> Proto,
+        
+    public:
+        FunctionAST(std::unique_ptr<PrototypeAST> Proto,
                     std::unique_ptr<ExprAST> Body)
-                : Proto(std::move(Proto)), Body(std::move(Body)) {}
-
-            Function *codegen();
+        : Proto(std::move(Proto)), Body(std::move(Body)) {}
+        
+        Function *codegen();
     };
 } // end anonymous namespace
 
@@ -91,7 +91,7 @@ static std::map<char, int> BinopPrecedence;
 static int GetTokPrecedence() {
     if (!isascii(CurTok))
         return -1;
-
+    
     int tokprec = BinopPrecedence[CurTok];
     if (tokprec <= 0)
         return -1;
@@ -129,7 +129,16 @@ static std::unique_ptr<ExprAST> ParseParenExpr() {
     // 4. getNextToken()を呼んでトークンを一つ進め、2で呼んだParseExpressionの返り値を返します。
     //
     // 課題を解く時はこの行を消してここに実装して下さい。
-    return nullptr;
+    getNextToken();
+    auto parseExpression = ParseExpression();
+    if(parseExpression==nullptr){
+        return nullptr;
+    }
+    if(CurTok !=')'){
+        return LogError("unknown token when expecting an expression");
+    }
+    getNextToken();
+    return parseExpression;
 }
 
 // ParsePrimary - NumberASTか括弧をパースする関数
@@ -149,34 +158,34 @@ static std::unique_ptr<ExprAST> ParsePrimary() {
 // LHSに二項演算子の左側が入った状態で呼び出され、LHSとRHSと二項演算子がペアになった
 // 状態で返ります。
 static std::unique_ptr<ExprAST> ParseBinOpRHS(int CallerPrec,
-        std::unique_ptr<ExprAST> LHS) {
-    // 課題を解く時はこの行を消して下さい。
-    return LHS;
+                                              std::unique_ptr<ExprAST> LHS) {
     while (true) {
         // 1. 現在の二項演算子の結合度を取得する。 e.g. int tokprec = GetTokPrecedence();
-
+        int tokprec = GetTokPrecedence();
         // 2. もし呼び出し元の演算子(CallerPrec)よりも結合度が低ければ、ここでは演算をせずにLHSを返す。
         // 例えば、「4*2+3」ではここで'2'が返るはずで、「4+2*3」ではここでは返らずに処理が進み、
         // '2*3'がパースされた後に返る。
-
+        if(CallerPrec > tokprec){
+            return LHS;
+        }
         // 3. 二項演算子をセットする。e.g. int BinOp = CurTok;
-
+        int BinOp = CurTok;
         // 4. 次のトークン(二項演算子の右のexpression)に進む。
-
+        getNextToken();
         // 5. 二項演算子の右のexpressionをパースする。 e.g. auto RHS = ParsePrimary();
-
+        auto RHS = ParsePrimary();
         // GetTokPrecedence()を呼んで、もし次のトークンも二項演算子だった場合を考える。
         // もし次の二項演算子の結合度が今の演算子の結合度よりも強かった場合、ParseBinOpRHSを再帰的に
         // 呼んで先に次の二項演算子をパースする。
-        //int NextPrec = GetTokPrecedence();
-        //if (tokprec < NextPrec) {
-        //    RHS = ParseBinOpRHS(tokprec + 1, std::move(RHS));
-        //    if (!RHS)
-        //        return nullptr;
-        //}
-
+        int NextPrec = GetTokPrecedence();
+        if (tokprec < NextPrec) {
+            RHS = ParseBinOpRHS(tokprec + 1, std::move(RHS));
+            if (!RHS)
+                return nullptr;
+        }
+        
         // LHS, RHSをBinaryASTにしてLHSに代入する。
-        //LHS = llvm::make_unique<BinaryAST>(BinOp, std::move(LHS), std::move(RHS));
+        LHS = llvm::make_unique<BinaryAST>(BinOp, std::move(LHS), std::move(RHS));
     }
 }
 
@@ -186,7 +195,7 @@ static std::unique_ptr<ExprAST> ParseExpression() {
     auto LHS = ParsePrimary();
     if (!LHS)
         return nullptr;
-
+    
     return ParseBinOpRHS(0, std::move(LHS));
 }
 
@@ -195,7 +204,7 @@ static std::unique_ptr<ExprAST> ParseExpression() {
 static std::unique_ptr<FunctionAST> ParseTopLevelExpr() {
     if (auto E = ParseExpression()) {
         auto Proto = llvm::make_unique<PrototypeAST>("__anon_expr",
-                std::vector<std::string>());
+                                                     std::vector<std::string>());
         return llvm::make_unique<FunctionAST>(std::move(Proto), std::move(E));
     }
     return nullptr;
